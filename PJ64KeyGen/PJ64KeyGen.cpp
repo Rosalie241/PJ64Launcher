@@ -71,9 +71,72 @@ std::string GenerateMachineID(void)
     return StringifyMd5(MD5((const unsigned char *)buf, sz, NULL));
 }
 
-int main(void)
+// largely taken from ./Source/Project64/UserInterface/ProjectSupport.cpp
+// see CProjectSupport::LoadSupportInfo
+bool ValidateSupportInfo(void)
 {
-    SupportInfo info;
+    SupportInfo m_SupportInfo = { 0 };
+    std::string MachineID = GenerateMachineID();
+    std::vector<uint8_t> InData;
+
+    HKEY hKeyResults = 0;
+    long lResult = RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Project64", 0, KEY_READ, &hKeyResults);
+    if (lResult == ERROR_SUCCESS)
+    {
+        DWORD DataSize = 0;
+        if (RegQueryValueEx(hKeyResults, "user", NULL, NULL, NULL, &DataSize) == ERROR_SUCCESS)
+        {
+            InData.resize(DataSize);
+            if (RegQueryValueEx(hKeyResults, "user", NULL, NULL, InData.data(), &DataSize) != ERROR_SUCCESS)
+            {
+                InData.clear();
+            }
+        }
+    }
+
+    if (hKeyResults != NULL)
+    {
+        RegCloseKey(hKeyResults);
+        NULL;
+    }
+
+    std::vector<uint8_t> OutData;
+    if (InData.size() > 0)
+    {
+        for (size_t i = 0, n = InData.size(); i < n; i++)
+        {
+            InData[i] ^= 0xAA;
+        }
+        OutData.resize(sizeof(SupportInfo) + 100);
+        uLongf DestLen = OutData.size();
+        if (uncompress(OutData.data(), &DestLen, InData.data(), InData.size()) >= 0)
+        {
+            OutData.resize(DestLen);
+        }
+        else
+        {
+            OutData.clear();
+        }
+    }
+
+    if (OutData.size() == sizeof(SupportInfo) + 32)
+    {
+        SupportInfo * Info = (SupportInfo *)OutData.data();
+        const char * CurrentHash = (const char *)(OutData.data() + sizeof(SupportInfo));
+        std::string hash = StringifyMd5(MD5((const unsigned char *)Info, sizeof(SupportInfo), NULL));
+        if (strcmp(hash.c_str(), CurrentHash) == 0 && strcmp(Info->MachineID, MachineID.c_str()) == 0)
+        {
+            memcpy(&m_SupportInfo, Info, sizeof(SupportInfo));
+        }
+    }
+    strcpy(m_SupportInfo.MachineID, MachineID.c_str());
+	
+    return m_SupportInfo.Validated;
+}
+
+void CreateSupportInfoKey(void)
+{
+	SupportInfo info;
     std::string hash;
 
     // init info
@@ -122,4 +185,19 @@ int main(void)
         RegSetValueEx(hKeyResults, "user", 0, REG_BINARY, (BYTE *)out_data.data(), out_data.size());
         RegCloseKey(hKeyResults);
     }
+}
+
+int main(void)
+{
+	if (ValidateSupportInfo())
+	{
+		std::cout << "Validated existing key" << std::endl;
+	}
+	else
+	{
+		CreateSupportInfoKey();
+		std::cout << "Generated new key" << std::endl;
+	}
+    
+	return 0;
 }
