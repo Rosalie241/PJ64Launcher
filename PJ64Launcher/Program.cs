@@ -21,7 +21,7 @@ namespace PJ64Launcher
 
             if (!File.Exists(keyGenExe))
             {
-                MessageBox.Show("KeyGen Executable Missing!", "Error", MessageBoxButtons.OK,  MessageBoxIcon.Error);
+                MessageBox.Show("KeyGen Executable Missing!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -38,7 +38,7 @@ namespace PJ64Launcher
             {
                 FileName = keyGenExe,
                 CreateNoWindow = true,
-                UseShellExecute = false,
+                UseShellExecute = true,
             };
             p.Start();
             p.WaitForExit();
@@ -48,7 +48,7 @@ namespace PJ64Launcher
             {
                 FileName = exe,
                 CreateNoWindow = false,
-                UseShellExecute = false,
+                UseShellExecute = true,
             };
             p.Start();
             p.WaitForExit();
