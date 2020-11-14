@@ -143,6 +143,8 @@ void CreateSupportInfoKey(void)
     memset(&info, 0, sizeof(info));
     strcpy(info.MachineID, GenerateMachineID().c_str());
     info.Validated = true;
+    long unsigned int size = (long unsigned int)sizeof(info.Name);
+    GetUserNameA(info.Name, &size);
 
     // generate md5 hash
     hash = StringifyMd5(MD5((const unsigned char *)&info, sizeof(info), NULL));
