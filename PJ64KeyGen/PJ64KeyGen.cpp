@@ -1,10 +1,10 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
-
-#include <openssl/md5.h>
-#include <zlib.h>
+#define MINIZ_IMPL
+#include "miniminiz.h"
 #include <windows.h>
+#include <wincrypt.h>
 
 typedef struct
 {
@@ -21,9 +21,9 @@ typedef struct
 std::string StringifyMd5(unsigned char* md5)
 {
     std::string ret;
-    char buf[MD5_DIGEST_LENGTH];
+    char buf[16];
     int index = 0;
-    for(int i = 0; i < MD5_DIGEST_LENGTH; i++)
+    for(int i = 0; i < 16; i++)
     {
         sprintf(buf, "%02x", md5[i]);
         ret.append(buf);
@@ -35,6 +35,18 @@ std::string StringifyMd5(unsigned char* md5)
     }
 
     return ret;
+}
+
+void MD5(BYTE *data, ULONG len, BYTE *hash_data) {
+  HCRYPTPROV hProv = 0;
+  HCRYPTPROV hHash = 0;
+  CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, 0);
+  CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash);
+  CryptHashData(hHash, data, len, 0);
+  DWORD cbHash = 16;
+  CryptGetHashParam(hHash, HP_HASHVAL, hash_data, &cbHash, 0);
+  CryptDestroyHash(hHash);
+  CryptReleaseContext(hProv, 0);
 }
 
 // largely taken from ./Source/Project64/UserInterface/ProjectSupport.cpp
@@ -67,8 +79,9 @@ std::string GenerateMachineID(void)
     char buf[300];
     int sz;
     sz = sprintf(buf, "%s.%ud.%s", ComputerName, SerialNumber, MachineGuid);
-
-    return StringifyMd5(MD5((const unsigned char *)buf, sz, NULL));
+    BYTE hash_bytes[16];
+    MD5((BYTE*)buf, sz,hash_bytes);
+    return StringifyMd5(hash_bytes);
 }
 
 // largely taken from ./Source/Project64/UserInterface/ProjectSupport.cpp
@@ -122,8 +135,10 @@ bool ValidateSupportInfo(void)
     if (OutData.size() == sizeof(SupportInfo) + 32)
     {
         SupportInfo * Info = (SupportInfo *)OutData.data();
+        BYTE hash_bytes[16];
+        MD5((BYTE*)Info, sizeof(SupportInfo),hash_bytes);
         const char * CurrentHash = (const char *)(OutData.data() + sizeof(SupportInfo));
-        std::string hash = StringifyMd5(MD5((const unsigned char *)Info, sizeof(SupportInfo), NULL));
+        std::string hash = StringifyMd5(hash_bytes);
         if (strcmp(hash.c_str(), CurrentHash) == 0 && strcmp(Info->MachineID, MachineID.c_str()) == 0)
         {
             memcpy(&m_SupportInfo, Info, sizeof(SupportInfo));
@@ -147,7 +162,9 @@ void CreateSupportInfoKey(void)
     GetUserNameA(info.Name, &size);
 
     // generate md5 hash
-    hash = StringifyMd5(MD5((const unsigned char *)&info, sizeof(info), NULL));
+    BYTE hash_bytes[16];
+    MD5((BYTE*)&info, sizeof(info),hash_bytes);
+    hash = StringifyMd5(hash_bytes);
 
     std::vector<uint8_t> in_data(sizeof(SupportInfo) + hash.length());
     std::vector<uint8_t> out_data(in_data.size());

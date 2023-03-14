@@ -1,2 +1,2 @@
 all:
-	$(CXX) PJ64KeyGen.cpp -lcrypto -lz -o PJ64KeyGen.exe -static
+	$(CXX) PJ64KeyGen.cpp -o PJ64KeyGen.exe -static
